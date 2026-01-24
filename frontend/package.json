@@ -1,0 +1,22 @@
+{
+  "name": "bvsradio-frontend",
+  "version": "1.0.0",
+  "description": "Frontend for BVSRadio platform",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "next": "^14.2.35",
+    "axios": "^1.4.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.42.0",
+    "eslint-config-next": "^14.2.35"
+  }
+}
