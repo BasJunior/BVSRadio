@@ -4,6 +4,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const { Pool } = require('pg');
 const dbConfig = require('./config/database');
+const rateLimit = require('./middleware/rateLimit');
 
 // Controllers
 const UserController = require('./controllers/UserController');
@@ -21,6 +22,12 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Rate limiting - apply to all routes
+app.use('/api/', rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100 // limit each IP to 100 requests per windowMs
+}));
 
 // Initialize controllers
 const userController = new UserController(pool);
