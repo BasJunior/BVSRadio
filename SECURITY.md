@@ -113,6 +113,28 @@ const hashedPassword = await bcrypt.hash(password, saltRounds);
 
 ## Security Findings
 
+### Dependency Vulnerabilities - FIXED ✅
+
+#### Next.js Security Updates
+**Status:** RESOLVED - Updated to patched version
+
+**Original Issue:**
+Next.js version 13.4.0 contained multiple critical vulnerabilities:
+- Denial of Service with Server Components
+- Authorization bypass vulnerability (CVE affecting versions 9.5.5 to 14.2.14)
+- Server-Side Request Forgery in Server Actions (versions 13.4.0 to 14.1.0)
+
+**Resolution:**
+Updated Next.js from version `^13.4.0` to `^14.2.35` in `frontend/package.json`
+
+**Vulnerabilities Addressed:**
+1. **DoS with Server Components**: Patched in 14.2.35
+2. **Authorization Bypass**: Patched in 14.2.15 (included in 14.2.35)
+3. **SSRF in Server Actions**: Patched in 14.1.1 (included in 14.2.35)
+
+**Mitigation:**
+All identified vulnerabilities are now resolved. The updated version (14.2.35) includes fixes for all reported security issues.
+
 ### CodeQL Analysis Results
 
 #### Finding: js/missing-rate-limiting
@@ -206,10 +228,12 @@ done
    - Implement Feature-Policy/Permissions-Policy
    - Add X-Permitted-Cross-Domain-Policies
 
-3. **Dependency Security**
-   - Regular `npm audit` checks
-   - Automated dependency updates
-   - Use `npm audit fix` for vulnerabilities
+3. **Dependency Security** ✅
+   - ✅ Next.js updated to secure version 14.2.35
+   - Regular `npm audit` checks recommended
+   - Automated dependency updates recommended
+   - Use `npm audit fix` for future vulnerabilities
+   - Consider using Dependabot or Renovate for automated updates
 
 ## Testing Recommendations
 
