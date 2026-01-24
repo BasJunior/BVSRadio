@@ -1,9 +1,11 @@
 // Shopping Cart Controller
 const ShoppingCart = require('../models/ShoppingCart');
+const Order = require('../models/Order');
 
 class CartController {
     constructor(pool) {
         this.cartModel = new ShoppingCart(pool);
+        this.orderModel = new Order(pool);
     }
 
     async getCart(req, res) {
@@ -80,23 +82,15 @@ class CartController {
                 return res.status(400).json({ error: 'Cart is empty' });
             }
             
-            // Create order (simplified - would need proper order processing)
-            const orderQuery = `
-                INSERT INTO orders (user_id, total_amount, shipping_address, payment_method, status)
-                VALUES ($1, $2, $3, $4, 'pending')
-                RETURNING *
-            `;
-            const orderResult = await this.cartModel.pool.query(orderQuery, [userId, total, shipping_address, payment_method]);
-            const order = orderResult.rows[0];
+            // Create order
+            const order = await this.orderModel.create(userId, {
+                total_amount: total,
+                shipping_address,
+                payment_method
+            });
             
             // Add order items
-            for (const item of items) {
-                const itemQuery = `
-                    INSERT INTO order_items (order_id, product_id, quantity, price)
-                    VALUES ($1, $2, $3, $4)
-                `;
-                await this.cartModel.pool.query(itemQuery, [order.id, item.product_id, item.quantity, item.price]);
-            }
+            await this.orderModel.addOrderItems(order.id, items);
             
             // Clear cart
             await this.cartModel.clear(userId);
