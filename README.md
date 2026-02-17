@@ -20,11 +20,13 @@ BVSRadio is a comprehensive platform that combines:
 - Genre-based recommendations
 
 ### E-commerce
-- Product catalog with categories
+- Product catalog with categories (Wolf Beat Packs, Mixtapes)
+- **Paynow payment integration** for Zimbabwe customers
 - Shopping cart functionality
 - Secure checkout system
 - Order management
 - Inventory tracking
+- Dedicated store page at `/store`
 
 ### Social Media
 - User profiles with customizable bios and avatars
@@ -191,8 +193,10 @@ For support, please open an issue in the GitHub repository or contact the develo
 
 ## 🗺️ Roadmap
 
+- [x] Payment gateway integration (Paynow for Zimbabwe)
+- [x] Store page with Wolf Beat Packs and Mixtapes
 - [ ] Real-time streaming implementation with WebRTC
-- [ ] Payment gateway integration (Stripe/PayPal)
+- [ ] Payment gateway integration (Stripe/PayPal for international)
 - [ ] Advanced recommendation algorithm
 - [ ] Mobile app development
 - [ ] Cloud storage integration for audio files
