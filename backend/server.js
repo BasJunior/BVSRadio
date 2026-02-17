@@ -13,6 +13,7 @@ const CartController = require('./controllers/CartController');
 const PlaylistController = require('./controllers/PlaylistController');
 const MessageController = require('./controllers/MessageController');
 const ActivityController = require('./controllers/ActivityController');
+const AIController = require('./controllers/AIController');
 
 const app = express();
 const pool = new Pool(dbConfig);
@@ -36,6 +37,7 @@ const cartController = new CartController(pool);
 const playlistController = new PlaylistController(pool);
 const messageController = new MessageController(pool);
 const activityController = new ActivityController(pool);
+const aiController = new AIController(pool);
 
 // Authentication middleware (simplified - needs proper JWT implementation)
 const authMiddleware = (req, res, next) => {
@@ -101,6 +103,12 @@ app.get('/api/feed', activityController.getFeed.bind(activityController));
 app.get('/api/users/:userId/activities', activityController.getUserActivities.bind(activityController));
 app.post('/api/activities', authMiddleware, activityController.createActivity.bind(activityController));
 app.delete('/api/activities/:id', authMiddleware, activityController.deleteActivity.bind(activityController));
+
+// AI Assistant routes
+app.post('/api/ai/chat', authMiddleware, aiController.chat.bind(aiController));
+app.get('/api/ai/history', authMiddleware, aiController.getHistory.bind(aiController));
+app.delete('/api/ai/history', authMiddleware, aiController.clearHistory.bind(aiController));
+app.post('/api/ai/suggest', authMiddleware, aiController.suggest.bind(aiController));
 
 // Radio streaming endpoints (placeholder - needs real streaming implementation)
 app.get('/api/stations', async (req, res) => {
