@@ -5,6 +5,7 @@ const helmet = require('helmet');
 const { Pool } = require('pg');
 const dbConfig = require('./config/database');
 const rateLimit = require('./middleware/rateLimit');
+const { aiSecurityMiddleware, aiRateLimitMiddleware } = require('./middleware/aiSecurity');
 
 // Controllers
 const UserController = require('./controllers/UserController');
@@ -104,11 +105,11 @@ app.get('/api/users/:userId/activities', activityController.getUserActivities.bi
 app.post('/api/activities', authMiddleware, activityController.createActivity.bind(activityController));
 app.delete('/api/activities/:id', authMiddleware, activityController.deleteActivity.bind(activityController));
 
-// AI Assistant routes
-app.post('/api/ai/chat', authMiddleware, aiController.chat.bind(aiController));
+// AI Assistant routes (with enhanced security)
+app.post('/api/ai/chat', authMiddleware, aiRateLimitMiddleware, aiSecurityMiddleware, aiController.chat.bind(aiController));
 app.get('/api/ai/history', authMiddleware, aiController.getHistory.bind(aiController));
 app.delete('/api/ai/history', authMiddleware, aiController.clearHistory.bind(aiController));
-app.post('/api/ai/suggest', authMiddleware, aiController.suggest.bind(aiController));
+app.post('/api/ai/suggest', authMiddleware, aiRateLimitMiddleware, aiSecurityMiddleware, aiController.suggest.bind(aiController));
 
 // Radio streaming endpoints (placeholder - needs real streaming implementation)
 app.get('/api/stations', async (req, res) => {
