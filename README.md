@@ -33,6 +33,14 @@ BVSRadio is a comprehensive platform that combines:
 - Private messaging between users
 - Public and private content sharing
 
+### AI Assistant 🤖
+- **Intelligent Chat Interface**: Context-aware conversational AI assistant
+- **Multi-domain Support**: Help with e-commerce, streaming, and social features
+- **Personalized Responses**: Tailored assistance based on user profile and history
+- **Security & Privacy**: Input sanitization, sensitive data detection, rate limiting
+- **Conversation History**: Maintains context across multiple interactions
+- See [AI Assistant Documentation](docs/AI_ASSISTANT.md) for detailed information
+
 ## 🚀 Getting Started
 
 ### Prerequisites
@@ -56,6 +64,7 @@ createdb bvsradio
 # Run migrations
 cd backend
 psql -d bvsradio -f migrations/001_initial_schema.sql
+psql -d bvsradio -f migrations/002_ai_assistant.sql
 ```
 
 3. Install backend dependencies:
@@ -68,6 +77,8 @@ npm install
 ```bash
 cp .env.example .env
 # Edit .env with your configuration
+# IMPORTANT: Add your OpenAI API key for AI assistant functionality
+# OPENAI_API_KEY=sk-your_openai_api_key_here
 ```
 
 5. Start the backend server:
@@ -155,6 +166,12 @@ See `backend/models/schema.sql` for the complete schema.
 - `GET /api/stations` - List radio stations
 - `GET /api/stations/:id/stream` - Stream radio station
 
+### AI Assistant
+- `POST /api/ai/chat` - Send message to AI assistant
+- `GET /api/ai/history` - Get conversation history
+- `DELETE /api/ai/history` - Clear conversation history
+- `POST /api/ai/suggest` - Get AI-powered suggestions
+
 ## 🛠️ Technologies Used
 
 ### Backend
@@ -163,6 +180,7 @@ See `backend/models/schema.sql` for the complete schema.
 - JWT for authentication
 - Helmet for security
 - CORS for cross-origin requests
+- OpenAI API for AI assistant
 
 ### Frontend
 - React with Next.js
@@ -191,6 +209,7 @@ For support, please open an issue in the GitHub repository or contact the develo
 
 ## 🗺️ Roadmap
 
+- [x] AI-powered assistant for enhanced user experience
 - [ ] Real-time streaming implementation with WebRTC
 - [ ] Payment gateway integration (Stripe/PayPal)
 - [ ] Advanced recommendation algorithm
@@ -199,6 +218,8 @@ For support, please open an issue in the GitHub repository or contact the develo
 - [ ] Email notifications
 - [ ] Two-factor authentication
 - [ ] Admin dashboard
+- [ ] Voice input for AI assistant
+- [ ] Multi-language AI support
 
 ## 👥 Authors
 
