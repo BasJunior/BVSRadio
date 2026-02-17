@@ -30,7 +30,7 @@ const testProducts = [
 ];
 
 console.log('Paynow Link Generation Test\n');
-console.log('=' .repeat(80));
+console.log('='.repeat(80));
 
 testProducts.forEach(product => {
     const link = generatePaynowLink(product);
