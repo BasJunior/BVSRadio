@@ -13,6 +13,7 @@ const CartController = require('./controllers/CartController');
 const PlaylistController = require('./controllers/PlaylistController');
 const MessageController = require('./controllers/MessageController');
 const ActivityController = require('./controllers/ActivityController');
+const InterviewPodcastController = require('./controllers/InterviewPodcastController');
 
 const app = express();
 const pool = new Pool(dbConfig);
@@ -36,6 +37,7 @@ const cartController = new CartController(pool);
 const playlistController = new PlaylistController(pool);
 const messageController = new MessageController(pool);
 const activityController = new ActivityController(pool);
+const interviewPodcastController = new InterviewPodcastController(pool);
 
 // Authentication middleware (simplified - needs proper JWT implementation)
 const authMiddleware = (req, res, next) => {
@@ -101,6 +103,14 @@ app.get('/api/feed', activityController.getFeed.bind(activityController));
 app.get('/api/users/:userId/activities', activityController.getUserActivities.bind(activityController));
 app.post('/api/activities', authMiddleware, activityController.createActivity.bind(activityController));
 app.delete('/api/activities/:id', authMiddleware, activityController.deleteActivity.bind(activityController));
+
+// Interview podcast routes
+app.get('/api/interview-podcasts', interviewPodcastController.getAllPodcasts.bind(interviewPodcastController));
+app.get('/api/interview-podcasts/:id', interviewPodcastController.getPodcast.bind(interviewPodcastController));
+app.get('/api/users/:userId/interview-podcasts', authMiddleware, interviewPodcastController.getUserPodcasts.bind(interviewPodcastController));
+app.post('/api/interview-podcasts', authMiddleware, interviewPodcastController.createPodcast.bind(interviewPodcastController));
+app.put('/api/interview-podcasts/:id', authMiddleware, interviewPodcastController.updatePodcast.bind(interviewPodcastController));
+app.delete('/api/interview-podcasts/:id', authMiddleware, interviewPodcastController.deletePodcast.bind(interviewPodcastController));
 
 // Radio streaming endpoints (placeholder - needs real streaming implementation)
 app.get('/api/stations', async (req, res) => {
