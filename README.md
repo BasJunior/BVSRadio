@@ -157,6 +157,19 @@ See `backend/models/schema.sql` for the complete schema.
 - `GET /api/stations` - List radio stations
 - `GET /api/stations/:id/stream` - Stream radio station
 
+### Organizations
+- `GET /api/organizations` - List all active organizations
+- `POST /api/organizations` - Register a new organization
+- `GET /api/organizations/:id` - Get organization details
+
+### Gifts (Cross-Platform Gifting)
+- `POST /api/gifts` - Send a gift from an organization to a user
+- `GET /api/gifts/received` - Get gifts received by the authenticated user
+- `GET /api/gifts/sent/:organizationId` - Get gifts sent by an organization
+- `GET /api/gifts/stats/:organizationId` - Get gift statistics for an organization
+- `GET /api/gifts/:id` - Get gift details
+- `PUT /api/gifts/:id/status` - Update gift status (e.g., after Paynow payment)
+
 ## 🛠️ Technologies Used
 
 ### Backend

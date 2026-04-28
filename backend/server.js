@@ -13,6 +13,7 @@ const CartController = require('./controllers/CartController');
 const PlaylistController = require('./controllers/PlaylistController');
 const MessageController = require('./controllers/MessageController');
 const ActivityController = require('./controllers/ActivityController');
+const GiftController = require('./controllers/GiftController');
 
 const app = express();
 const pool = new Pool(dbConfig);
@@ -36,6 +37,7 @@ const cartController = new CartController(pool);
 const playlistController = new PlaylistController(pool);
 const messageController = new MessageController(pool);
 const activityController = new ActivityController(pool);
+const giftController = new GiftController(pool);
 
 // Authentication middleware (simplified - needs proper JWT implementation)
 const authMiddleware = (req, res, next) => {
@@ -101,6 +103,19 @@ app.get('/api/feed', activityController.getFeed.bind(activityController));
 app.get('/api/users/:userId/activities', activityController.getUserActivities.bind(activityController));
 app.post('/api/activities', authMiddleware, activityController.createActivity.bind(activityController));
 app.delete('/api/activities/:id', authMiddleware, activityController.deleteActivity.bind(activityController));
+
+// Organization routes
+app.get('/api/organizations', giftController.getOrganizations.bind(giftController));
+app.post('/api/organizations', giftController.createOrganization.bind(giftController));
+app.get('/api/organizations/:id', giftController.getOrganization.bind(giftController));
+
+// Gift routes (cross-platform gifts from organizations to users)
+app.post('/api/gifts', giftController.sendGift.bind(giftController));
+app.get('/api/gifts/received', authMiddleware, giftController.getReceivedGifts.bind(giftController));
+app.get('/api/gifts/sent/:organizationId', giftController.getSentGifts.bind(giftController));
+app.get('/api/gifts/stats/:organizationId', giftController.getGiftStats.bind(giftController));
+app.get('/api/gifts/:id', giftController.getGift.bind(giftController));
+app.put('/api/gifts/:id/status', giftController.updateGiftStatus.bind(giftController));
 
 // Radio streaming endpoints (placeholder - needs real streaming implementation)
 app.get('/api/stations', async (req, res) => {
