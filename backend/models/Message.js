@@ -54,16 +54,17 @@ class Message {
     async getUnreadCount(userId) {
         const query = 'SELECT COUNT(*) as count FROM messages WHERE recipient_id = $1 AND is_read = false';
         const result = await this.pool.query(query, [userId]);
-        return parseInt(result.rows[0].count);
+        return Number.parseInt(result.rows[0].count, 10);
     }
 
     async delete(messageId, userId) {
-        // Only allow deletion if user is sender or recipient
         const query = `
             DELETE FROM messages
             WHERE id = $1 AND (sender_id = $2 OR recipient_id = $2)
+            RETURNING id
         `;
-        await this.pool.query(query, [messageId, userId]);
+        const result = await this.pool.query(query, [messageId, userId]);
+        return result.rowCount > 0;
     }
 }
 
