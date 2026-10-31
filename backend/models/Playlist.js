@@ -15,19 +15,23 @@ class Playlist {
         return result.rows[0];
     }
 
-    async findById(id) {
+    async findPublicById(id) {
         const query = `
             SELECT p.*, u.username as owner_username
             FROM playlists p
             JOIN users u ON p.user_id = u.id
-            WHERE p.id = $1
+            WHERE p.id = $1 AND p.is_public = true
         `;
         const result = await this.pool.query(query, [id]);
         return result.rows[0];
     }
 
-    async findByUserId(userId) {
-        const query = 'SELECT * FROM playlists WHERE user_id = $1 ORDER BY created_at DESC';
+    async findByUserId(userId, includePrivate = false) {
+        const query = `
+            SELECT * FROM playlists
+            WHERE user_id = $1 ${includePrivate ? '' : 'AND is_public = true'}
+            ORDER BY created_at DESC
+        `;
         const result = await this.pool.query(query, [userId]);
         return result.rows;
     }
@@ -44,25 +48,49 @@ class Playlist {
         return result.rows;
     }
 
-    async addTrack(playlistId, trackId) {
-        // Get max position
-        let query = 'SELECT COALESCE(MAX(position), 0) as max_pos FROM playlist_tracks WHERE playlist_id = $1';
-        let result = await this.pool.query(query, [playlistId]);
-        const position = result.rows[0].max_pos + 1;
-        
-        query = `
-            INSERT INTO playlist_tracks (playlist_id, track_id, position)
-            VALUES ($1, $2, $3)
-            ON CONFLICT DO NOTHING
-            RETURNING *
-        `;
-        result = await this.pool.query(query, [playlistId, trackId, position]);
-        return result.rows[0];
+    async addTrack(playlistId, trackId, userId) {
+        const client = await this.pool.connect();
+        try {
+            await client.query('BEGIN');
+            const owner = await client.query('SELECT id FROM playlists WHERE id = $1 AND user_id = $2 FOR UPDATE', [playlistId, userId]);
+            if (owner.rows.length === 0) {
+                await client.query('ROLLBACK');
+                return null;
+            }
+
+            const positionResult = await client.query(
+                'SELECT COALESCE(MAX(position), 0) + 1 AS position FROM playlist_tracks WHERE playlist_id = $1',
+                [playlistId]
+            );
+            const position = positionResult.rows[0].position;
+            const result = await client.query(`
+                INSERT INTO playlist_tracks (playlist_id, track_id, position)
+                VALUES ($1, $2, $3)
+                ON CONFLICT DO NOTHING
+                RETURNING *
+            `, [playlistId, trackId, position]);
+            await client.query('COMMIT');
+            return result.rows[0];
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
     }
 
-    async removeTrack(playlistId, trackId) {
-        const query = 'DELETE FROM playlist_tracks WHERE playlist_id = $1 AND track_id = $2';
-        await this.pool.query(query, [playlistId, trackId]);
+    async removeTrack(playlistId, trackId, userId) {
+        const query = `
+            DELETE FROM playlist_tracks pt
+            USING playlists p
+            WHERE pt.playlist_id = p.id
+              AND pt.playlist_id = $1
+              AND pt.track_id = $2
+              AND p.user_id = $3
+            RETURNING pt.id
+        `;
+        const result = await this.pool.query(query, [playlistId, trackId, userId]);
+        return result.rowCount > 0;
     }
 
     async getTracks(playlistId) {
@@ -77,7 +105,7 @@ class Playlist {
         return result.rows;
     }
 
-    async update(id, playlistData) {
+    async update(id, playlistData, userId) {
         const { name, description, is_public, cover_image_url } = playlistData;
         const query = `
             UPDATE playlists
@@ -86,16 +114,17 @@ class Playlist {
                 is_public = COALESCE($3, is_public),
                 cover_image_url = COALESCE($4, cover_image_url),
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = $5
+            WHERE id = $5 AND user_id = $6
             RETURNING *
         `;
-        const result = await this.pool.query(query, [name, description, is_public, cover_image_url, id]);
+        const result = await this.pool.query(query, [name, description, is_public, cover_image_url, id, userId]);
         return result.rows[0];
     }
 
-    async delete(id) {
-        const query = 'DELETE FROM playlists WHERE id = $1';
-        await this.pool.query(query, [id]);
+    async delete(id, userId) {
+        const query = 'DELETE FROM playlists WHERE id = $1 AND user_id = $2 RETURNING id';
+        const result = await this.pool.query(query, [id, userId]);
+        return result.rowCount > 0;
     }
 }
 
