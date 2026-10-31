@@ -1,6 +1,8 @@
 // Shopping Cart Controller
 const ShoppingCart = require('../models/ShoppingCart');
 const Order = require('../models/Order');
+const { positiveInt, boundedInt, cleanString, sendValidationError } = require('../middleware/validation');
+const { handleServerError } = require('../utils/http');
 
 class CartController {
     constructor(pool) {
@@ -10,97 +12,85 @@ class CartController {
 
     async getCart(req, res) {
         try {
-            const userId = req.user.id;
-            const items = await this.cartModel.getItems(userId);
-            const total = await this.cartModel.getTotalAmount(userId);
-            
-            res.json({
-                items,
-                total
-            });
+            const items = await this.cartModel.getItems(req.user.id);
+            const total = await this.cartModel.getTotalAmount(req.user.id);
+            res.json({ items, total });
         } catch (error) {
-            res.status(500).json({ error: error.message });
+            return handleServerError(res, error, 'cart:get');
         }
     }
 
     async addToCart(req, res) {
         try {
-            const userId = req.user.id;
-            const { productId, quantity } = req.body;
-            
-            const item = await this.cartModel.addItem(userId, productId, quantity);
+            const productId = positiveInt(req.body.productId);
+            const quantity = boundedInt(req.body.quantity ?? 1, { min: 1, max: 100 });
+            if (!productId || !quantity) return sendValidationError(res, 'Invalid product or quantity');
+
+            const item = await this.cartModel.addItem(req.user.id, productId, quantity);
+            if (!item) return res.status(409).json({ error: 'Product unavailable or insufficient stock' });
             res.status(201).json(item);
         } catch (error) {
-            res.status(500).json({ error: error.message });
+            return handleServerError(res, error, 'cart:add');
         }
     }
 
     async updateCartItem(req, res) {
         try {
-            const userId = req.user.id;
-            const { productId, quantity } = req.body;
-            
-            const item = await this.cartModel.updateItemQuantity(userId, productId, quantity);
+            const productId = positiveInt(req.body.productId);
+            const quantity = boundedInt(req.body.quantity, { min: 1, max: 100 });
+            if (!productId || !quantity) return sendValidationError(res, 'Invalid product or quantity');
+
+            const item = await this.cartModel.updateItemQuantity(req.user.id, productId, quantity);
+            if (!item) return res.status(409).json({ error: 'Cart item unavailable or insufficient stock' });
             res.json(item);
         } catch (error) {
-            res.status(500).json({ error: error.message });
+            return handleServerError(res, error, 'cart:update');
         }
     }
 
     async removeFromCart(req, res) {
         try {
-            const userId = req.user.id;
-            const productId = req.params.productId;
-            
-            await this.cartModel.removeItem(userId, productId);
+            const productId = positiveInt(req.params.productId);
+            if (!productId) return sendValidationError(res, 'Invalid product id');
+            await this.cartModel.removeItem(req.user.id, productId);
             res.json({ message: 'Item removed from cart' });
         } catch (error) {
-            res.status(500).json({ error: error.message });
+            return handleServerError(res, error, 'cart:remove');
         }
     }
 
     async clearCart(req, res) {
         try {
-            const userId = req.user.id;
-            await this.cartModel.clear(userId);
+            await this.cartModel.clear(req.user.id);
             res.json({ message: 'Cart cleared' });
         } catch (error) {
-            res.status(500).json({ error: error.message });
+            return handleServerError(res, error, 'cart:clear');
         }
     }
 
     async checkout(req, res) {
         try {
-            const userId = req.user.id;
-            const { shipping_address, payment_method } = req.body;
-            
-            // Get cart items and total
-            const items = await this.cartModel.getItems(userId);
-            const total = await this.cartModel.getTotalAmount(userId);
-            
-            if (items.length === 0) {
-                return res.status(400).json({ error: 'Cart is empty' });
+            const shippingAddress = cleanString(req.body.shipping_address, { min: 5, max: 1000, required: true });
+            const paymentMethod = cleanString(req.body.payment_method, { min: 1, max: 50, required: true });
+            if (!shippingAddress || !paymentMethod) return sendValidationError(res, 'Invalid checkout details');
+
+            // Store only a provider/method identifier, never raw card/bank credentials.
+            if (!/^[a-z0-9_-]+$/i.test(paymentMethod)) {
+                return sendValidationError(res, 'Invalid payment method');
             }
-            
-            // Create order
-            const order = await this.orderModel.create(userId, {
-                total_amount: total,
-                shipping_address,
-                payment_method
-            });
-            
-            // Add order items
-            await this.orderModel.addOrderItems(order.id, items);
-            
-            // Clear cart
-            await this.cartModel.clear(userId);
-            
-            res.json({
-                message: 'Order placed successfully',
-                order
+
+            const result = await this.orderModel.createFromCart(req.user.id, shippingAddress, paymentMethod);
+            if (result.error === 'empty') return res.status(400).json({ error: 'Cart is empty' });
+            if (result.error === 'stock') return res.status(409).json({ error: 'One or more items are unavailable' });
+
+            // The order remains pending until a verified server-side payment webhook
+            // marks it paid. Client-provided success state must never fulfill an order.
+            res.status(201).json({
+                message: 'Order created and awaiting payment confirmation',
+                order: result.order
             });
         } catch (error) {
-            res.status(500).json({ error: error.message });
+            return handleServerError(res, error, 'cart:checkout');
         }
     }
 }
