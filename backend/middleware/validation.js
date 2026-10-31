@@ -1,11 +1,20 @@
+function parseInteger(value) {
+    if (typeof value === 'number') {
+        return Number.isSafeInteger(value) ? value : null;
+    }
+    if (typeof value !== 'string' || !/^-?\d+$/.test(value.trim())) return null;
+    const parsed = Number(value.trim());
+    return Number.isSafeInteger(parsed) ? parsed : null;
+}
+
 function positiveInt(value) {
-    const parsed = Number.parseInt(value, 10);
-    return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
+    const parsed = parseInteger(value);
+    return parsed !== null && parsed > 0 ? parsed : null;
 }
 
 function boundedInt(value, { min = 1, max = 100 } = {}) {
-    const parsed = Number.parseInt(value, 10);
-    return Number.isSafeInteger(parsed) && parsed >= min && parsed <= max ? parsed : null;
+    const parsed = parseInteger(value);
+    return parsed !== null && parsed >= min && parsed <= max ? parsed : null;
 }
 
 function cleanString(value, { min = 0, max = 500, required = false } = {}) {
@@ -22,7 +31,9 @@ function optionalHttpUrl(value) {
     if (typeof value !== 'string' || value.length > 2048) return null;
     try {
         const url = new URL(value);
-        return ['http:', 'https:'].includes(url.protocol) ? url.toString() : null;
+        if (!['http:', 'https:'].includes(url.protocol)) return null;
+        if (url.username || url.password) return null;
+        return url.toString();
     } catch {
         return null;
     }
