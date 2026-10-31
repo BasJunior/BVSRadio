@@ -15,7 +15,6 @@ class Activity {
     }
 
     async getUserFeed(userId, limit = 50) {
-        // Get activities from users that this user follows, plus their own
         const query = `
             SELECT a.*, u.username, u.avatar_url
             FROM activities a
@@ -47,7 +46,7 @@ class Activity {
     async getUserActivities(userId, limit = 50) {
         const query = `
             SELECT * FROM activities
-            WHERE user_id = $1
+            WHERE user_id = $1 AND is_public = true
             ORDER BY created_at DESC
             LIMIT $2
         `;
@@ -56,8 +55,9 @@ class Activity {
     }
 
     async delete(activityId, userId) {
-        const query = 'DELETE FROM activities WHERE id = $1 AND user_id = $2';
-        await this.pool.query(query, [activityId, userId]);
+        const query = 'DELETE FROM activities WHERE id = $1 AND user_id = $2 RETURNING id';
+        const result = await this.pool.query(query, [activityId, userId]);
+        return result.rowCount > 0;
     }
 }
 
