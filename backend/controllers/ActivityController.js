@@ -12,7 +12,9 @@ class ActivityController {
         try {
             const limit = boundedInt(req.query.limit ?? 50, { min: 1, max: 100 });
             if (!limit) return sendValidationError(res, 'Invalid limit');
-            const activities = await this.activityModel.getPublicFeed(limit);
+            const activities = req.user
+                ? await this.activityModel.getUserFeed(req.user.id, limit)
+                : await this.activityModel.getPublicFeed(limit);
             res.json(activities);
         } catch (error) {
             return handleServerError(res, error, 'activities:feed');
