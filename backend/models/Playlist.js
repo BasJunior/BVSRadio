@@ -15,14 +15,15 @@ class Playlist {
         return result.rows[0];
     }
 
-    async findPublicById(id) {
+    async findByIdForViewer(id, viewerId = null) {
         const query = `
             SELECT p.*, u.username as owner_username
             FROM playlists p
             JOIN users u ON p.user_id = u.id
-            WHERE p.id = $1 AND p.is_public = true
+            WHERE p.id = $1
+              AND (p.is_public = true OR p.user_id = $2)
         `;
-        const result = await this.pool.query(query, [id]);
+        const result = await this.pool.query(query, [id, viewerId]);
         return result.rows[0];
     }
 
