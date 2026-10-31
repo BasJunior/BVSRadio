@@ -24,33 +24,34 @@ class Product {
     async findAll(filters = {}) {
         let query = 'SELECT * FROM products WHERE is_available = true';
         const params = [];
-        
+
         if (filters.category) {
             params.push(filters.category);
             query += ` AND category = $${params.length}`;
         }
-        
+
         query += ' ORDER BY created_at DESC';
-        
+
         const result = await this.pool.query(query, params);
         return result.rows;
     }
 
     async update(id, productData) {
-        const { name, description, price, category, stock_quantity, is_available } = productData;
+        const { name, description, price, category, image_url, stock_quantity, is_available } = productData;
         const query = `
             UPDATE products
             SET name = COALESCE($1, name),
                 description = COALESCE($2, description),
                 price = COALESCE($3, price),
                 category = COALESCE($4, category),
-                stock_quantity = COALESCE($5, stock_quantity),
-                is_available = COALESCE($6, is_available),
+                image_url = COALESCE($5, image_url),
+                stock_quantity = COALESCE($6, stock_quantity),
+                is_available = COALESCE($7, is_available),
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = $7
+            WHERE id = $8
             RETURNING *
         `;
-        const result = await this.pool.query(query, [name, description, price, category, stock_quantity, is_available, id]);
+        const result = await this.pool.query(query, [name, description, price, category, image_url, stock_quantity, is_available, id]);
         return result.rows[0];
     }
 
