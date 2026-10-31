@@ -27,6 +27,7 @@ class CartController {
             if (!productId || !quantity) return sendValidationError(res, 'Invalid product or quantity');
 
             const item = await this.cartModel.addItem(req.user.id, productId, quantity);
+            if (!item) return res.status(409).json({ error: 'Product unavailable or insufficient stock' });
             res.status(201).json(item);
         } catch (error) {
             return handleServerError(res, error, 'cart:add');
@@ -40,7 +41,7 @@ class CartController {
             if (!productId || !quantity) return sendValidationError(res, 'Invalid product or quantity');
 
             const item = await this.cartModel.updateItemQuantity(req.user.id, productId, quantity);
-            if (!item) return res.status(404).json({ error: 'Cart item not found' });
+            if (!item) return res.status(409).json({ error: 'Cart item unavailable or insufficient stock' });
             res.json(item);
         } catch (error) {
             return handleServerError(res, error, 'cart:update');
@@ -73,28 +74,20 @@ class CartController {
             const paymentMethod = cleanString(req.body.payment_method, { min: 1, max: 50, required: true });
             if (!shippingAddress || !paymentMethod) return sendValidationError(res, 'Invalid checkout details');
 
-            // payment_method must be a provider identifier (for example "stripe"), never raw card data.
+            // Store only a provider/method identifier, never raw card/bank credentials.
             if (!/^[a-z0-9_-]+$/i.test(paymentMethod)) {
                 return sendValidationError(res, 'Invalid payment method');
             }
 
-            const items = await this.cartModel.getItems(req.user.id);
-            const total = await this.cartModel.getTotalAmount(req.user.id);
-            if (items.length === 0) return res.status(400).json({ error: 'Cart is empty' });
+            const result = await this.orderModel.createFromCart(req.user.id, shippingAddress, paymentMethod);
+            if (result.error === 'empty') return res.status(400).json({ error: 'Cart is empty' });
+            if (result.error === 'stock') return res.status(409).json({ error: 'One or more items are unavailable' });
 
-            // This creates a pending order only. Payment confirmation must happen through
-            // the payment provider's verified server-side callback/webhook before fulfillment.
-            const order = await this.orderModel.create(req.user.id, {
-                total_amount: total,
-                shipping_address: shippingAddress,
-                payment_method: paymentMethod
-            });
-            await this.orderModel.addOrderItems(order.id, items);
-            await this.cartModel.clear(req.user.id);
-
+            // The order remains pending until a verified server-side payment webhook
+            // marks it paid. Client-provided success state must never fulfill an order.
             res.status(201).json({
                 message: 'Order created and awaiting payment confirmation',
-                order
+                order: result.order
             });
         } catch (error) {
             return handleServerError(res, error, 'cart:checkout');
