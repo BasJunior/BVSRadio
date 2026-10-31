@@ -5,7 +5,7 @@ const helmet = require('helmet');
 const { Pool } = require('pg');
 const dbConfig = require('./config/database');
 const rateLimit = require('./middleware/rateLimit');
-const { authMiddleware, requireRole } = require('./middleware/auth');
+const { authMiddleware, optionalAuthMiddleware, requireRole } = require('./middleware/auth');
 const { positiveInt } = require('./middleware/validation');
 
 // Controllers
@@ -93,11 +93,12 @@ app.delete('/api/cart/:productId', authMiddleware, cartController.removeFromCart
 app.delete('/api/cart', authMiddleware, cartController.clearCart.bind(cartController));
 app.post('/api/cart/checkout', authMiddleware, cartController.checkout.bind(cartController));
 
-// Playlist routes. Public endpoints never expose private playlists.
+// Playlist routes. Optional auth allows owners to read their own private playlists;
+// anonymous users still see public records only.
 app.get('/api/playlists/public', playlistController.getPublicPlaylists.bind(playlistController));
 app.get('/api/playlists/mine', authMiddleware, playlistController.getMyPlaylists.bind(playlistController));
 app.get('/api/users/:userId/playlists', playlistController.getUserPlaylists.bind(playlistController));
-app.get('/api/playlists/:id', playlistController.getPlaylist.bind(playlistController));
+app.get('/api/playlists/:id', optionalAuthMiddleware, playlistController.getPlaylist.bind(playlistController));
 app.post('/api/playlists', authMiddleware, playlistController.createPlaylist.bind(playlistController));
 app.put('/api/playlists/:id', authMiddleware, playlistController.updatePlaylist.bind(playlistController));
 app.delete('/api/playlists/:id', authMiddleware, playlistController.deletePlaylist.bind(playlistController));
@@ -111,17 +112,18 @@ app.post('/api/messages', authMiddleware, messageController.sendMessage.bind(mes
 app.put('/api/messages/:id/read', authMiddleware, messageController.markAsRead.bind(messageController));
 app.delete('/api/messages/:id', authMiddleware, messageController.deleteMessage.bind(messageController));
 
-// Activity feed routes
-app.get('/api/feed', activityController.getFeed.bind(activityController));
+// Activity feed routes. Optional auth preserves personalized followed-user feeds
+// without trusting unverified identity headers.
+app.get('/api/feed', optionalAuthMiddleware, activityController.getFeed.bind(activityController));
 app.get('/api/users/:userId/activities', activityController.getUserActivities.bind(activityController));
 app.post('/api/activities', authMiddleware, activityController.createActivity.bind(activityController));
 app.delete('/api/activities/:id', authMiddleware, activityController.deleteActivity.bind(activityController));
 
-// Radio streaming endpoints
+// Radio streaming endpoints. Keep internal/source stream URLs out of station listings.
 app.get('/api/stations', async (req, res) => {
     try {
         const result = await pool.query(
-            'SELECT id, name, description, logo_url, stream_url FROM radio_stations WHERE is_active = true'
+            'SELECT id, name, description, logo_url, genre, country FROM radio_stations WHERE is_active = true'
         );
         res.json(result.rows);
     } catch (error) {
