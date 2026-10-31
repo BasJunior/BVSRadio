@@ -9,6 +9,11 @@ function getJwtSecret() {
     return secret;
 }
 
+// Fail closed at startup instead of silently serving an unauthenticated production API.
+if (process.env.NODE_ENV === 'production') {
+    getJwtSecret();
+}
+
 function authMiddleware(req, res, next) {
     const header = req.get('authorization');
     if (!header || !header.startsWith('Bearer ')) {
@@ -24,11 +29,12 @@ function authMiddleware(req, res, next) {
         const payload = jwt.verify(token, getJwtSecret(), {
             algorithms: ['HS256'],
             issuer: process.env.JWT_ISSUER || 'bvsradio',
-            audience: process.env.JWT_AUDIENCE || 'bvsradio-api'
+            audience: process.env.JWT_AUDIENCE || 'bvsradio-api',
+            clockTolerance: 5
         });
 
         const id = Number.parseInt(payload.sub, 10);
-        if (!Number.isSafeInteger(id) || id <= 0) {
+        if (!Number.isSafeInteger(id) || id <= 0 || !Number.isFinite(payload.exp)) {
             return res.status(401).json({ error: 'Invalid authentication token' });
         }
 
