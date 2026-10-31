@@ -1,5 +1,7 @@
 // User Controller
 const User = require('../models/User');
+const { positiveInt, cleanString, optionalHttpUrl, sendValidationError } = require('../middleware/validation');
+const { handleServerError } = require('../utils/http');
 
 class UserController {
     constructor(pool) {
@@ -8,74 +10,92 @@ class UserController {
 
     async getProfile(req, res) {
         try {
-            const userId = req.params.id || req.user.id;
+            const userId = positiveInt(req.params.id);
+            if (!userId) return sendValidationError(res, 'Invalid user id');
+
             const user = await this.userModel.findById(userId);
-            
-            if (!user) {
-                return res.status(404).json({ error: 'User not found' });
-            }
-            
+            if (!user) return res.status(404).json({ error: 'User not found' });
             res.json(user);
         } catch (error) {
-            res.status(500).json({ error: error.message });
+            return handleServerError(res, error, 'users:get-profile');
+        }
+    }
+
+    async getMe(req, res) {
+        try {
+            const user = await this.userModel.findPrivateById(req.user.id);
+            if (!user) return res.status(404).json({ error: 'User not found' });
+            res.json(user);
+        } catch (error) {
+            return handleServerError(res, error, 'users:get-me');
         }
     }
 
     async updateProfile(req, res) {
         try {
-            const userId = req.user.id;
-            const updatedUser = await this.userModel.update(userId, req.body);
+            const fullName = cleanString(req.body.full_name, { max: 100 });
+            const bio = cleanString(req.body.bio, { max: 1000 });
+            const avatarUrl = optionalHttpUrl(req.body.avatar_url);
+            if (fullName === null || bio === null || avatarUrl === null) {
+                return sendValidationError(res, 'Invalid profile fields');
+            }
+
+            const updatedUser = await this.userModel.update(req.user.id, {
+                full_name: fullName,
+                bio,
+                avatar_url: avatarUrl
+            });
             res.json(updatedUser);
         } catch (error) {
-            res.status(500).json({ error: error.message });
+            return handleServerError(res, error, 'users:update-profile');
         }
     }
 
     async getFollowers(req, res) {
         try {
-            const userId = req.params.id;
+            const userId = positiveInt(req.params.id);
+            if (!userId) return sendValidationError(res, 'Invalid user id');
             const followers = await this.userModel.getFollowers(userId);
             res.json(followers);
         } catch (error) {
-            res.status(500).json({ error: error.message });
+            return handleServerError(res, error, 'users:get-followers');
         }
     }
 
     async getFollowing(req, res) {
         try {
-            const userId = req.params.id;
+            const userId = positiveInt(req.params.id);
+            if (!userId) return sendValidationError(res, 'Invalid user id');
             const following = await this.userModel.getFollowing(userId);
             res.json(following);
         } catch (error) {
-            res.status(500).json({ error: error.message });
+            return handleServerError(res, error, 'users:get-following');
         }
     }
 
     async follow(req, res) {
         try {
-            const followerId = req.user.id;
-            const followingId = req.params.id;
-            
-            if (followerId === parseInt(followingId)) {
+            const followingId = positiveInt(req.params.id);
+            if (!followingId) return sendValidationError(res, 'Invalid user id');
+            if (req.user.id === followingId) {
                 return res.status(400).json({ error: 'Cannot follow yourself' });
             }
-            
-            await this.userModel.follow(followerId, followingId);
+
+            await this.userModel.follow(req.user.id, followingId);
             res.json({ message: 'Successfully followed user' });
         } catch (error) {
-            res.status(500).json({ error: error.message });
+            return handleServerError(res, error, 'users:follow');
         }
     }
 
     async unfollow(req, res) {
         try {
-            const followerId = req.user.id;
-            const followingId = req.params.id;
-            
-            await this.userModel.unfollow(followerId, followingId);
+            const followingId = positiveInt(req.params.id);
+            if (!followingId) return sendValidationError(res, 'Invalid user id');
+            await this.userModel.unfollow(req.user.id, followingId);
             res.json({ message: 'Successfully unfollowed user' });
         } catch (error) {
-            res.status(500).json({ error: error.message });
+            return handleServerError(res, error, 'users:unfollow');
         }
     }
 }
