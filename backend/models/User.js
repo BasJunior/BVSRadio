@@ -1,6 +1,4 @@
 // User Model
-const { Pool } = require('pg');
-
 class User {
     constructor(pool) {
         this.pool = pool;
@@ -17,7 +15,14 @@ class User {
         return result.rows[0];
     }
 
+    // Safe for unauthenticated/public profile responses: deliberately excludes email.
     async findById(id) {
+        const query = 'SELECT id, username, full_name, bio, avatar_url, created_at FROM users WHERE id = $1';
+        const result = await this.pool.query(query, [id]);
+        return result.rows[0];
+    }
+
+    async findPrivateById(id) {
         const query = 'SELECT id, username, email, full_name, bio, avatar_url, created_at FROM users WHERE id = $1';
         const result = await this.pool.query(query, [id]);
         return result.rows[0];
@@ -38,7 +43,7 @@ class User {
     async update(id, userData) {
         const { full_name, bio, avatar_url } = userData;
         const query = `
-            UPDATE users 
+            UPDATE users
             SET full_name = COALESCE($1, full_name),
                 bio = COALESCE($2, bio),
                 avatar_url = COALESCE($3, avatar_url),
