@@ -5,6 +5,8 @@ const helmet = require('helmet');
 const { Pool } = require('pg');
 const dbConfig = require('./config/database');
 const rateLimit = require('./middleware/rateLimit');
+const { authMiddleware, requireRole } = require('./middleware/auth');
+const { positiveInt } = require('./middleware/validation');
 
 // Controllers
 const UserController = require('./controllers/UserController');
@@ -17,16 +19,41 @@ const ActivityController = require('./controllers/ActivityController');
 const app = express();
 const pool = new Pool(dbConfig);
 
-// Middleware
-app.use(helmet());
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.disable('x-powered-by');
 
-// Rate limiting - apply to all API routes
+const trustProxy = Number.parseInt(process.env.TRUST_PROXY || '0', 10);
+if (Number.isSafeInteger(trustProxy) && trustProxy > 0) {
+    app.set('trust proxy', trustProxy);
+}
+
+const allowedOrigins = (process.env.CORS_ORIGIN || 'https://bvsradio.com,https://www.bvsradio.com')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+// Middleware
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: 'same-site' },
+    referrerPolicy: { policy: 'no-referrer' }
+}));
+app.use(cors({
+    origin(origin, callback) {
+        // Allow server-to-server requests without an Origin header.
+        if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+        return callback(new Error('Origin not allowed by CORS'));
+    },
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Authorization', 'Content-Type'],
+    maxAge: 600
+}));
+app.use(express.json({ limit: '100kb' }));
+app.use(express.urlencoded({ extended: false, limit: '100kb' }));
+
+// Rate limiting - apply to all API routes. For multi-instance production,
+// configure an external/shared rate-limiting layer as well.
 app.use('/api', rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100 // limit each IP to 100 requests per windowMs
+    windowMs: 15 * 60 * 1000,
+    max: 100
 }));
 
 // Initialize controllers
@@ -37,39 +64,26 @@ const playlistController = new PlaylistController(pool);
 const messageController = new MessageController(pool);
 const activityController = new ActivityController(pool);
 
-// Authentication middleware (simplified - needs proper JWT implementation)
-const authMiddleware = (req, res, next) => {
-    // In production, verify JWT token here
-    // For now, mock authentication
-    const userId = req.headers['x-user-id'];
-    if (!userId) {
-        return res.status(401).json({ error: 'Authentication required' });
-    }
-    req.user = { id: parseInt(userId) };
-    next();
-};
-
 // Routes
-
-// Health check
 app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', message: 'BVSRadio API is running' });
+    res.json({ status: 'ok' });
 });
 
-// User routes
-app.get('/api/users/:id', userController.getProfile.bind(userController));
+// User routes. Put fixed paths before /:id.
+app.get('/api/users/me', authMiddleware, userController.getMe.bind(userController));
 app.put('/api/users/profile', authMiddleware, userController.updateProfile.bind(userController));
 app.get('/api/users/:id/followers', userController.getFollowers.bind(userController));
 app.get('/api/users/:id/following', userController.getFollowing.bind(userController));
 app.post('/api/users/:id/follow', authMiddleware, userController.follow.bind(userController));
 app.delete('/api/users/:id/follow', authMiddleware, userController.unfollow.bind(userController));
+app.get('/api/users/:id', userController.getProfile.bind(userController));
 
-// Product routes
+// Product routes. Mutations are admin-only.
 app.get('/api/products', productController.getAllProducts.bind(productController));
 app.get('/api/products/:id', productController.getProduct.bind(productController));
-app.post('/api/products', authMiddleware, productController.createProduct.bind(productController));
-app.put('/api/products/:id', authMiddleware, productController.updateProduct.bind(productController));
-app.delete('/api/products/:id', authMiddleware, productController.deleteProduct.bind(productController));
+app.post('/api/products', authMiddleware, requireRole('admin'), productController.createProduct.bind(productController));
+app.put('/api/products/:id', authMiddleware, requireRole('admin'), productController.updateProduct.bind(productController));
+app.delete('/api/products/:id', authMiddleware, requireRole('admin'), productController.deleteProduct.bind(productController));
 
 // Shopping cart routes
 app.get('/api/cart', authMiddleware, cartController.getCart.bind(cartController));
@@ -79,10 +93,11 @@ app.delete('/api/cart/:productId', authMiddleware, cartController.removeFromCart
 app.delete('/api/cart', authMiddleware, cartController.clearCart.bind(cartController));
 app.post('/api/cart/checkout', authMiddleware, cartController.checkout.bind(cartController));
 
-// Playlist routes
+// Playlist routes. Public endpoints never expose private playlists.
 app.get('/api/playlists/public', playlistController.getPublicPlaylists.bind(playlistController));
-app.get('/api/playlists/:id', playlistController.getPlaylist.bind(playlistController));
+app.get('/api/playlists/mine', authMiddleware, playlistController.getMyPlaylists.bind(playlistController));
 app.get('/api/users/:userId/playlists', playlistController.getUserPlaylists.bind(playlistController));
+app.get('/api/playlists/:id', playlistController.getPlaylist.bind(playlistController));
 app.post('/api/playlists', authMiddleware, playlistController.createPlaylist.bind(playlistController));
 app.put('/api/playlists/:id', authMiddleware, playlistController.updatePlaylist.bind(playlistController));
 app.delete('/api/playlists/:id', authMiddleware, playlistController.deletePlaylist.bind(playlistController));
@@ -102,35 +117,48 @@ app.get('/api/users/:userId/activities', activityController.getUserActivities.bi
 app.post('/api/activities', authMiddleware, activityController.createActivity.bind(activityController));
 app.delete('/api/activities/:id', authMiddleware, activityController.deleteActivity.bind(activityController));
 
-// Radio streaming endpoints (placeholder - needs real streaming implementation)
+// Radio streaming endpoints
 app.get('/api/stations', async (req, res) => {
     try {
-        const result = await pool.query('SELECT * FROM radio_stations WHERE is_active = true');
+        const result = await pool.query(
+            'SELECT id, name, description, logo_url, stream_url FROM radio_stations WHERE is_active = true'
+        );
         res.json(result.rows);
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error('[stations:list]', error);
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
 app.get('/api/stations/:id/stream', (req, res) => {
-    // In production, this would proxy to actual radio stream
-    res.json({ 
+    const stationId = positiveInt(req.params.id);
+    if (!stationId) return res.status(400).json({ error: 'Invalid station id' });
+
+    res.json({
         message: 'Stream endpoint',
-        station_id: req.params.id,
-        stream_url: `http://stream.bvsradio.com/station/${req.params.id}`
+        station_id: stationId,
+        stream_url: `https://stream.bvsradio.com/station/${stationId}`
     });
+});
+
+app.use('/api', (req, res) => {
+    res.status(404).json({ error: 'Not found' });
 });
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(500).json({ error: 'Something went wrong!' });
+    console.error('[unhandled]', err);
+    if (err && err.message === 'Origin not allowed by CORS') {
+        return res.status(403).json({ error: 'Origin not allowed' });
+    }
+    res.status(500).json({ error: 'Internal server error' });
 });
 
-// Start server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+const PORT = Number.parseInt(process.env.PORT || '3000', 10);
+const server = app.listen(PORT, () => {
     console.log(`BVSRadio API server running on port ${PORT}`);
 });
+server.requestTimeout = 30_000;
+server.headersTimeout = 35_000;
 
 module.exports = app;
