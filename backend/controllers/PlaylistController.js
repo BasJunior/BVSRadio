@@ -45,7 +45,7 @@ class PlaylistController {
             const playlistId = positiveInt(req.params.id);
             if (!playlistId) return sendValidationError(res, 'Invalid playlist id');
 
-            const playlist = await this.playlistModel.findPublicById(playlistId);
+            const playlist = await this.playlistModel.findByIdForViewer(playlistId, req.user?.id || null);
             if (!playlist) return res.status(404).json({ error: 'Playlist not found' });
 
             const tracks = await this.playlistModel.getTracks(playlistId);
