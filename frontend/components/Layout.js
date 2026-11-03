@@ -1,7 +1,8 @@
 // Main layout component
 import React from 'react';
+import AIAssistant from './AIAssistant';
 
-export default function Layout({ children }) {
+export default function Layout({ children, userId }) {
     return (
         <div className="min-h-screen bg-gray-100">
             <header className="bg-blue-600 text-white p-4">
@@ -24,6 +25,9 @@ export default function Layout({ children }) {
                     <p>&copy; 2025 BVSRadio. All rights reserved.</p>
                 </div>
             </footer>
+            
+            {/* AI Assistant Widget - only show if userId is provided */}
+            {userId && <AIAssistant userId={userId} />}
         </div>
     );
 }
