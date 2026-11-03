@@ -1,0 +1,87 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci --omit=dev
+
+      - name: Install frontend dependencies and build
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Create release archive
+        run: |
+          tar -czf bvsradio-${{ github.ref_name }}.tar.gz \
+            --exclude='.git' \
+            --exclude='**/node_modules' \
+            --exclude='frontend/.next' \
+            .
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 ${{ github.ref_name }}^ 2>/dev/null || echo '')
+          if [ -n "$PREVIOUS_TAG" ]; then
+            NOTES=$(git log --pretty=format:"- %s" ${PREVIOUS_TAG}..${{ github.ref_name }})
+          else
+            NOTES=$(git log --pretty=format:"- %s" ${{ github.ref_name }})
+          fi
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: BVSRadio ${{ github.ref_name }}
+          body: |
+            ## What's Changed
+
+            ${{ steps.release_notes.outputs.notes }}
+
+            ## Installation
+
+            See [DEPLOYMENT.md](docs/DEPLOYMENT.md) for full deployment instructions.
+
+            ### Quick Start with Docker Compose
+            ```bash
+            # Download and extract the release archive
+            tar -xzf bvsradio-${{ github.ref_name }}.tar.gz
+            cd BVSRadio
+
+            # Configure environment
+            cp .env.example .env
+            # Edit .env with your settings
+
+            # Start all services
+            docker compose up -d
+            ```
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          files: bvsradio-${{ github.ref_name }}.tar.gz
