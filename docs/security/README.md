@@ -21,6 +21,8 @@ _2026-11-04 (Europe/Berlin). Do not commit secrets or sensitive incident evidenc
 - On 2026-11-04, the `main` branch tree contained **50 entries**; the only environment-named file found was `.env.example` (a template). Initial code search found configuration references but no confirmed leaked secret. These checks **are not a full historical credential audit**.
 - Primary repository's separate `docs/security/README.md` contains the broader incident handover and scope.
 
+- Targeted historical review across both repositories included 11 security/password/token/removal-related commit patches. No high-confidence token or private-key fingerprint was found in the inspected patch text. This is not proof that all historical commits are clean.
+
 ## Resolution log
 
 - Privacy change for this repository: **pending independent confirmation**.
